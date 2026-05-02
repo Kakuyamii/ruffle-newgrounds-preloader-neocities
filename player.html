@@ -31,9 +31,24 @@
       player.style.display = "block";
       document.getElementById("player-wrap").appendChild(player);
 
+      // fscommand (in case it ever works)
       player.addEventListener("ruffle:fscommand", function (e) {
+        console.log("[ruffle:fscommand] command:", e.detail.command);
         if (e.detail.command === "closePreloader") {
-          // Tell the parent Neocities page to close the preloader
+          window.parent.postMessage("closePreloader", "*");
+        }
+      });
+
+      // Fallback click
+      var readyForClick = false;
+      setTimeout(function () {
+        readyForClick = true;
+        console.log("[preloader] Ready to accept click");
+      }, 4000);
+
+      player.addEventListener("click", function () {
+        if (readyForClick) {
+          console.log("[preloader] Click detected, sending closePreloader");
           window.parent.postMessage("closePreloader", "*");
         }
       });
