@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+  </style>
+  <script>
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+      publicPath:      "/ruffle/",
+      autoplay:        "on",
+      unmuteOverlay:   "hidden",
+      splashScreen:    false,
+      contextMenu:     "off",
+      backgroundColor: "#000000",
+      polyfills:       false
+    };
+  </script>
+  <script src="/ruffle/ruffle.js"></script>
+</head>
+<body>
+  <div id="player-wrap" style="width:100%;height:100%;"></div>
+  <script>
+    window.addEventListener("DOMContentLoaded", function () {
+      var ruffle = window.RufflePlayer.newest();
+      var player = ruffle.createPlayer();
+      player.style.width   = "100%";
+      player.style.height  = "100%";
+      player.style.display = "block";
+      document.getElementById("player-wrap").appendChild(player);
+
+      player.addEventListener("ruffle:fscommand", function (e) {
+        if (e.detail.command === "closePreloader") {
+          // Tell the parent Neocities page to close the preloader
+          window.parent.postMessage("closePreloader", "*");
+        }
+      });
+
+      player.ruffle().load({
+        url:             "ng_alternate_preloaderNEOCITIES.swf",
+        autoplay:        "on",
+        unmuteOverlay:   "hidden",
+        splashScreen:    false,
+        contextMenu:     "off",
+        backgroundColor: "#000000"
+      });
+    });
+  </script>
+</body>
+</html>
