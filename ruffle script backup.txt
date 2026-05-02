@@ -1,0 +1,70 @@
+<div id="preloader-overlay" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;background:#000;"></div>
+
+<script>
+    window.RufflePlayer = window.RufflePlayer || {};
+    window.RufflePlayer.config = {
+        publicPath: "/ruffle/",
+        autoplay:        "on",
+        unmuteOverlay:   "hidden",
+        splashScreen:    false,
+        contextMenu:     "off",
+        backgroundColor: "#000000",
+        polyfills:       false
+    };
+</script>
+<script src="/ruffle/ruffle.js"></script>
+<script>
+    window.closePreloader = function () {
+        var overlay = document.getElementById("preloader-overlay");
+        if (!overlay) return;
+        overlay.style.transition    = "opacity 0.4s ease";
+        overlay.style.opacity       = "0";
+        overlay.style.pointerEvents = "none";
+        setTimeout(function () { overlay.style.display = "none"; }, 450);
+        document.body.classList.remove("preloader-active");
+    };
+
+    window.addEventListener("DOMContentLoaded", function () {
+        var ruffle = window.RufflePlayer.newest();
+        var player = ruffle.createPlayer();
+        player.style.width   = "100%";
+        player.style.height  = "100%";
+        player.style.display = "block";
+        document.getElementById("preloader-overlay").appendChild(player);
+
+        // fscommand listener - keep this in case AS does fire
+        player.addEventListener("ruffle:fscommand", function (e) {
+            console.log("[ruffle:fscommand] fired! command:", e.detail.command);
+            if (e.detail.command === "closePreloader") {
+                window.closePreloader();
+            }
+        });
+
+        // Fallback: close preloader on any click on the player
+        // after a short delay (so the loading animation has time to show).
+        // We wait for the first click AFTER 1 second has passed.
+        var readyForClick = false;
+        setTimeout(function () {
+            readyForClick = true;
+            console.log("[preloader] Ready to accept play button click");
+        }, 4000);
+
+        player.addEventListener("click", function () {
+            if (readyForClick) {
+                console.log("[preloader] Click detected on player, closing preloader");
+                window.closePreloader();
+            }
+        });
+
+        console.log("[preloader] fscommand listener attached to player");
+
+        player.ruffle().load({
+            url:             "ng_alternate_preloaderNEOCITIES.swf",
+            autoplay:        "on",
+            unmuteOverlay:   "hidden",
+            splashScreen:    false,
+            contextMenu:     "off",
+            backgroundColor: "#000000"
+        });
+    });
+</script>
