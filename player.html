@@ -31,21 +31,24 @@
       player.style.display = "block";
       document.getElementById("player-wrap").appendChild(player);
 
-      // fscommand (in case it ever works)
-      player.addEventListener("ruffle:fscommand", function (e) {
-        console.log("[ruffle:fscommand] command:", e.detail.command);
-        if (e.detail.command === "closePreloader") {
-          window.parent.postMessage("closePreloader", "*");
-        }
-      });
+      // 1 in 100 chance of turret preloader
+      var useTurret = (Math.floor(Math.random() * 100) === 0);
+      var swfFile   = useTurret
+                        ? "ng_turret_preloaderNEOCITIES.swf"
+                        : "ng_alternate_preloaderNEOCITIES.swf";
+
+      // Turret: fake load (1s) + animation ends at frame 51 (1.6667s) + buffer
+      // Normal: existing 2001ms
+      var clickDelay = useTurret ? 3000 : 2001;
+
+      console.log("[preloader] Loading:", swfFile);
 
       // Fallback click
       var readyForClick = false;
       setTimeout(function () {
         readyForClick = true;
         console.log("[preloader] Ready to accept click");
-      }, 1100);
-
+      }, clickDelay);
       player.addEventListener("click", function () {
         if (readyForClick) {
           console.log("[preloader] Click detected, sending closePreloader");
@@ -54,7 +57,7 @@
       });
 
       player.ruffle().load({
-        url:             "ng_alternate_preloaderNEOCITIES.swf",
+        url:             swfFile,
         autoplay:        "on",
         unmuteOverlay:   "hidden",
         splashScreen:    false,
