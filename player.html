@@ -64,7 +64,7 @@
       }
 
       // Expose console command: forceturret()
-      wfunction loadPreloader(forceTurret) {
+      function loadPreloader(forceTurret) {
   var useTurret = (forceTurret === true) || (Math.floor(Math.random() * 100) === 0);
   var swfFile   = useTurret
                     ? "ng_turret_preloaderNEOCITIES.swf"
