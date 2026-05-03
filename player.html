@@ -31,18 +31,33 @@
       player.style.display = "block";
       document.getElementById("player-wrap").appendChild(player);
 
-      function loadPreloader(forceTurret) {
-        var useTurret = (forceTurret === true) || (Math.floor(Math.random() * 100) === 0);
-        var swfFile   = useTurret
-                          ? "ng_turret_preloaderNEOCITIES.swf"
-                          : "ng_alternate_preloaderNEOCITIES.swf";
-        var clickDelay = useTurret ? 3000 : 2001;
-        console.log("[preloader] Loading:", swfFile);
+      var monthOverride = null; // null = auto
+
+      function pickSwf() {
+        var month = monthOverride !== null ? monthOverride : new Date().getMonth();
+
+        if (month === 9) {
+          // October - Halloween
+          return { url: "ng_halloween_preloaderNEOCITIES.swf", delay: 3000 };
+        } else if ((month >= 5 && month <= 8) || month === 11) {
+          // June-Sep + December - Winter
+          return { url: "ng_winter_preloaderNEOCITIES.swf", delay: 3000 };
+        } else if (Math.floor(Math.random() * 100) === 0) {
+          // 1% turret chance outside holiday months
+          return { url: "ng_turret_preloaderNEOCITIES.swf", delay: 3000 };
+        } else {
+          return { url: "ng_alternate_preloaderNEOCITIES.swf", delay: 2001 };
+        }
+      }
+
+      function loadPreloader(forceSwf) {
+        var chosen = forceSwf || pickSwf();
+        console.log("[preloader] Loading:", chosen.url);
         var readyForClick = false;
         setTimeout(function () {
           readyForClick = true;
           console.log("[preloader] Ready to accept click");
-        }, clickDelay);
+        }, chosen.delay);
         player.addEventListener("click", function () {
           if (readyForClick) {
             console.log("[preloader] Click detected, sending closePreloader");
@@ -50,7 +65,7 @@
           }
         });
         player.ruffle().load({
-          url:             swfFile,
+          url:             chosen.url,
           autoplay:        "on",
           unmuteOverlay:   "hidden",
           splashScreen:    false,
@@ -59,8 +74,7 @@
         });
       }
 
-      window.forceturret = function () {
-        console.log("[preloader] Forcing turret preloader...");
+      function reloadWith(swfObj) {
         document.getElementById("player-wrap").innerHTML = "";
         var newPlayer = ruffle.createPlayer();
         newPlayer.style.width   = "100%";
@@ -68,17 +82,42 @@
         newPlayer.style.display = "block";
         document.getElementById("player-wrap").appendChild(newPlayer);
         player = newPlayer;
-        loadPreloader(true);
+        loadPreloader(swfObj);
+      }
+
+      // Console commands
+      window.forceturret = function () {
+        console.log("[preloader] Forcing turret preloader...");
+        reloadWith({ url: "ng_turret_preloaderNEOCITIES.swf", delay: 3000 });
+      };
+
+      window.halloween = function () {
+        monthOverride = 9;
+        console.log("[preloader] Forcing Halloween preloader. SPOOKY!");
+        reloadWith({ url: "ng_halloween_preloaderNEOCITIES.swf", delay: 3000 });
+      };
+
+      window.xmas = function () {
+        monthOverride = 11;
+        console.log("[preloader] Forcing winter preloader. BRRRR!");
+        reloadWith({ url: "ng_winter_preloaderNEOCITIES.swf", delay: 3000 });
+      };
+
+      window.resetHoliday = function () {
+        monthOverride = null;
+        console.log("[preloader] Reset to automatic.");
+        reloadWith(null); // null = let pickSwf() decide naturally
       };
 
       window.addEventListener("message", function (e) {
-        if (e.data === "forceturret") {
-          window.forceturret();
-        }
+        if (e.data === "forceturret") window.forceturret();
+        if (e.data === "halloween")   window.halloween();
+        if (e.data === "xmas")        window.xmas();
+        if (e.data === "resetHoliday") window.resetHoliday();
       });
 
-      console.log("[preloader] Tip: type forceturret() in the console to test the turret preloader.");
-      loadPreloader(false);
+      console.log("[preloader] Console commands: forceturret() | halloween() | xmas() | resetHoliday()");
+      loadPreloader(null);
     });
   </script>
 </body>
