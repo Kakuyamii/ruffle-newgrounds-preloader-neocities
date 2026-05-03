@@ -31,39 +31,52 @@
       player.style.display = "block";
       document.getElementById("player-wrap").appendChild(player);
 
-      // 1 in 100 chance of turret preloader
-      var useTurret = (Math.floor(Math.random() * 100) === 0);
-      var swfFile   = useTurret
-                        ? "ng_turret_preloaderNEOCITIES.swf"
-                        : "ng_alternate_preloaderNEOCITIES.swf";
+      function loadPreloader(forceTurret) {
+        var useTurret = (forceTurret === true) || (Math.floor(Math.random() * 100) === 0);
+        var swfFile   = useTurret
+                          ? "ng_turret_preloaderNEOCITIES.swf"
+                          : "ng_alternate_preloaderNEOCITIES.swf";
+        var clickDelay = useTurret ? 3000 : 2001;
 
-      // Turret: fake load (1s) + animation ends at frame 51 (1.6667s) + buffer
-      // Normal: existing 2001ms
-      var clickDelay = useTurret ? 3000 : 2001;
+        console.log("[preloader] Loading:", swfFile);
 
-      console.log("[preloader] Loading:", swfFile);
+        var readyForClick = false;
+        setTimeout(function () {
+          readyForClick = true;
+          console.log("[preloader] Ready to accept click");
+        }, clickDelay);
+        player.addEventListener("click", function () {
+          if (readyForClick) {
+            console.log("[preloader] Click detected, sending closePreloader");
+            window.parent.postMessage("closePreloader", "*");
+          }
+        });
 
-      // Fallback click
-      var readyForClick = false;
-      setTimeout(function () {
-        readyForClick = true;
-        console.log("[preloader] Ready to accept click");
-      }, clickDelay);
-      player.addEventListener("click", function () {
-        if (readyForClick) {
-          console.log("[preloader] Click detected, sending closePreloader");
-          window.parent.postMessage("closePreloader", "*");
-        }
-      });
+        player.ruffle().load({
+          url:             swfFile,
+          autoplay:        "on",
+          unmuteOverlay:   "hidden",
+          splashScreen:    false,
+          contextMenu:     "off",
+          backgroundColor: "#000000"
+        });
+      }
 
-      player.ruffle().load({
-        url:             swfFile,
-        autoplay:        "on",
-        unmuteOverlay:   "hidden",
-        splashScreen:    false,
-        contextMenu:     "off",
-        backgroundColor: "#000000"
-      });
+      // Expose console command: forceturret()
+      window.forceturret = function () {
+        console.log("[preloader] Forcing turret preloader...");
+        document.getElementById("player-wrap").innerHTML = "";
+        var newPlayer = ruffle.createPlayer();
+        newPlayer.style.width   = "100%";
+        newPlayer.style.height  = "100%";
+        newPlayer.style.display = "block";
+        document.getElementById("player-wrap").appendChild(newPlayer);
+        player = newPlayer;
+        loadPreloader(true);
+      };
+
+      console.log("[preloader] Tip: type forceturret() in the console to test the turret preloader.");
+      loadPreloader(false);
     });
   </script>
 </body>
