@@ -5,6 +5,22 @@
   <style>
     * { margin: 0; padding: 0; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+    body { position: relative; }
+
+    /* Clickable area over the PLAY button */
+    #hitbox {
+      position: absolute;
+      left: 50%;
+      top: calc(50% + 26vh);      /* button center, below the middle */
+      width: 47vh;
+      height: 17.4vh;
+      transform: translate(-50%, -50%);
+      cursor: default;            /* switches to pointer once clickable */
+      z-index: 10;
+      /* Debug: uncomment to see the area */
+      /* background: rgba(255, 0, 0, 0.4); */
+    }
+    #hitbox.ready { cursor: pointer; }
   </style>
   <script>
     window.RufflePlayer = window.RufflePlayer || {};
@@ -22,6 +38,7 @@
 </head>
 <body>
   <div id="player-wrap" style="width:100%;height:100%;"></div>
+  <div id="hitbox"></div>
   <script>
     window.addEventListener("DOMContentLoaded", function () {
       var ruffle = window.RufflePlayer.newest();
@@ -31,7 +48,10 @@
       player.style.display = "block";
       document.getElementById("player-wrap").appendChild(player);
 
+      var hitbox        = document.getElementById("hitbox");
       var monthOverride = null; // null = auto
+      var readyForClick = false;
+      var readyTimer    = null;
 
       function pickSwf() {
         var month = monthOverride !== null ? monthOverride : new Date().getMonth();
@@ -53,17 +73,17 @@
       function loadPreloader(forceSwf) {
         var chosen = forceSwf || pickSwf();
         console.log("[preloader] Loading:", chosen.url);
-        var readyForClick = false;
-        setTimeout(function () {
+
+        // Reset click state on every (re)load
+        readyForClick = false;
+        hitbox.classList.remove("ready");
+        clearTimeout(readyTimer);
+        readyTimer = setTimeout(function () {
           readyForClick = true;
+          hitbox.classList.add("ready");
           console.log("[preloader] Ready to accept click");
         }, chosen.delay);
-        player.addEventListener("click", function () {
-          if (readyForClick) {
-            console.log("[preloader] Click detected, sending closePreloader");
-            window.parent.postMessage("closePreloader", "*");
-          }
-        });
+
         player.ruffle().load({
           url:             chosen.url,
           autoplay:        "on",
@@ -73,6 +93,14 @@
           backgroundColor: "#000000"
         });
       }
+
+      // Attached once, so reloads don't stack duplicate listeners
+      hitbox.addEventListener("click", function () {
+        if (readyForClick) {
+          console.log("[preloader] Click detected, sending closePreloader");
+          window.parent.postMessage("closePreloader", "*");
+        }
+      });
 
       function reloadWith(swfObj) {
         document.getElementById("player-wrap").innerHTML = "";
@@ -110,9 +138,9 @@
       };
 
       window.addEventListener("message", function (e) {
-        if (e.data === "forceturret") window.forceturret();
-        if (e.data === "halloween")   window.halloween();
-        if (e.data === "xmas")        window.xmas();
+        if (e.data === "forceturret")  window.forceturret();
+        if (e.data === "halloween")    window.halloween();
+        if (e.data === "xmas")         window.xmas();
         if (e.data === "resetHoliday") window.resetHoliday();
       });
 
