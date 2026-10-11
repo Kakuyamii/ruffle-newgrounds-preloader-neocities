@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>scrobbler</title>
+</head>
+<body>
+<script src="lastfm-core.js"></script>
+<script>
+// Invisible iframe: the Neocities page tells us what the player is doing, we talk to last.fm.
+(function () {
+    var SITE        = LFM.SITE_ORIGIN;
+    var PENDING_KEY = "kakuyamii_lastfm_pending";   // scrobbles waiting to be retried
+    var RETRY_CODES = [9, 11, 16];                  // 9 = login expired, 11 = offline, 16 = temporary error
+
+    var session = null;   // { sk, name }, given to us by the parent page
+    var cur = null;       // the song currently playing
+
+    // ---------- storage helpers (never throw) ----------
+    function readJSON(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+    function writeJSON(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+
+    function tell(msg) {
+        msg.source = "kakuyamii-scrobbler";
+        try { window.parent.postMessage(msg, SITE); } catch (e) {}
+    }
+
+    function expire() {
+        session = null;
+        tell({ type: "expired" });
+    }
+
+    // ---------- scrobble submission (with retry queue) ----------
+    function send(item) {
+        if (!session) return Promise.reject(new Error("retry"));
+        var p = { method: "track.scrobble", artist: item.artist, track: item.track,
+                  timestamp: item.timestamp, sk: session.sk };
+        if (item.duration) p.duration = item.duration;
+        return LFM.api(p, true).then(function (d) {
+            if (d && d.error) {
+                console.warn("[last.fm] scrobble error " + d.error + ": " + d.message);
+                if (d.error === 9) expire();
+                if (RETRY_CODES.indexOf(d.error) !== -1) throw new Error("retry");
+                return;   // any other error: the data is bad, don't retry
+            }
+            console.log("[last.fm] scrobbled: " + item.artist + " - " + item.track);
+        });
+    }
+
+    var flushing = false;
+    function flushPending() {
+        if (flushing || !session) return;
+        var cutoff = Math.floor(Date.now() / 1000) - 13 * 86400;   // last.fm rejects scrobbles >14 days old
+        var list = (readJSON(PENDING_KEY) || []).filter(function (i) { return i.timestamp > cutoff; });
+        writeJSON(PENDING_KEY, list);
+        if (!list.length) return;
+        flushing = true;
+        (function next() {
+            var rest = readJSON(PENDING_KEY) || [];
+            if (!rest.length || !session) { flushing = false; return; }
+            send(rest[0]).then(function () {
+                rest.shift();
+                writeJSON(PENDING_KEY, rest);
+                next();
+            }, function () { flushing = false; });
+        })();
+    }
+
+    function queueForLater(item) {
+        var list = readJSON(PENDING_KEY) || [];
+        list.push(item);
+        writeJSON(PENDING_KEY, list);
+    }
+
+    // ---------- listening state ----------
+    // "Artist - Song" -> artist + track. A song entry can override with its own artist: / track: fields.
+    function splitSong(song) {
+        var artist = song.artist, track = song.track;
+        if (!artist || !track) {
+            var i = (song.name || "").indexOf(" - ");
+            if (i > 0) {
+                artist = artist || song.name.slice(0, i);
+                track  = track  || song.name.slice(i + 3);
+            }
+        }
+        return (artist && track) ? { artist: artist.trim(), track: track.trim() } : null;
+    }
+
+    // Time actually spent listening: banked seconds + the stretch currently playing.
+    function playedSoFar() {
+        if (!cur) return 0;
+        return cur.played + (cur.since ? (Date.now() - cur.since) / 1000 : 0);
+    }
+    function bank() {
+        if (cur && cur.since) { cur.played += (Date.now() - cur.since) / 1000; cur.since = null; }
+    }
+
+    function maybeScrobble() {
+        if (!cur || cur.done || !session || !cur.duration || cur.duration < 30) return;
+        // last.fm rule: at least half the song, or 4 minutes, whichever comes first
+        if (playedSoFar() < Math.min(cur.duration / 2, 240)) return;
+        cur.done = true;
+        var item = {
+            artist: cur.artist,
+            track: cur.track,
+            timestamp: cur.startTs || (Math.floor(Date.now() / 1000) - Math.round(playedSoFar())),
+            duration: Math.round(cur.duration)
+        };
+        send(item).then(flushPending, function () { queueForLater(item); });
+    }
+
+    function maybeNowPlaying() {
+        if (!cur || !session || cur.np || !cur.since) return;
+        cur.np = true;
+        var p = { method: "track.updateNowPlaying", artist: cur.artist, track: cur.track, sk: session.sk };
+        if (cur.duration) p.duration = Math.round(cur.duration);
+        LFM.api(p, true).then(function (d) {
+            if (d && d.error === 9) expire();
+        }).catch(function () {});
+    }
+
+    setInterval(maybeScrobble, 1000);
+
+    // ---------- messages from the Neocities page ----------
+    window.addEventListener("message", function (e) {
+        if (e.origin !== SITE || e.source !== window.parent) return;
+        var m = e.data;
+        if (!m || m.source !== "kakuyamii-site") return;
+
+        if (m.type === "session") {
+            var s = m.session;
+            session = (s && typeof s.sk === "string") ? { sk: s.sk, name: s.name } : null;
+            if (session) { console.log("[last.fm] scrobbling as " + session.name); flushPending(); maybeNowPlaying(); }
+            return;
+        }
+
+        if (m.type === "song") {
+            // Settle the previous song first, so the order of the page's events can't lose a scrobble.
+            bank();
+            maybeScrobble();
+            var t = m.song ? splitSong(m.song) : null;
+            cur = t ? { artist: t.artist, track: t.track, startTs: null, played: 0, since: null,
+                        duration: 0, done: false, np: false } : null;
+            return;
+        }
+
+        if (!cur) return;
+        if (m.duration && isFinite(m.duration)) cur.duration = m.duration;
+
+        if (m.type === "playing") {
+            if (!cur.since) cur.since = Date.now();
+            if (!cur.startTs) cur.startTs = Math.floor(Date.now() / 1000);
+            maybeNowPlaying();
+        } else if (m.type === "pause" || m.type === "ended") {
+            bank();
+            maybeScrobble();
+        }
+    });
+
+    tell({ type: "ready" });
+})();
+</script>
+</body>
+</html>

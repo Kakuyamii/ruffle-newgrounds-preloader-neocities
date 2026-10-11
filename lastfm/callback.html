@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Last.fm login</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: #eee; margin: 0; height: 100vh;
+         display: flex; align-items: center; justify-content: center; text-align: center; }
+</style>
+</head>
+<body>
+<p id="msg">Connecting to Last.fm...</p>
+<script src="lastfm-core.js"></script>
+<script>
+(function () {
+    var msg = document.getElementById("msg");
+    var token = new URLSearchParams(location.search).get("token");
+
+    // Step 1: no token yet -> send the popup to last.fm to approve access.
+    if (!token) {
+        location.replace("https://www.last.fm/api/auth/?api_key=" + encodeURIComponent(LFM.API_KEY) +
+                         "&cb=" + encodeURIComponent(location.origin + location.pathname));
+        return;
+    }
+
+    // Step 2: last.fm sent us back with a token -> trade it for a session.
+    LFM.api({ method: "auth.getSession", token: token }, false).then(function (d) {
+        if (!d || !d.session) {
+            msg.textContent = "Login failed: " + ((d && d.message) || "unknown error");
+            return;
+        }
+        var session = { sk: d.session.key, name: d.session.name };
+
+        if (window.opener && !window.opener.closed) {
+            // Normal path: hand the session to the Neocities page that opened this popup.
+            window.opener.postMessage({ source: "kakuyamii-lastfm", type: "session", session: session }, LFM.SITE_ORIGIN);
+            msg.textContent = "Connected as " + session.name + "! You can close this window.";
+            setTimeout(function () { window.close(); }, 1200);
+        } else {
+            // Fallback (popup lost its link to the page, or it wasn't a popup): go to the site with the session in the URL hash.
+            msg.textContent = "Connected as " + session.name + "! Taking you back...";
+            location.replace(LFM.SITE_ORIGIN + "/#lastfm=" + encodeURIComponent(btoa(JSON.stringify(session))));
+        }
+    }).catch(function (err) {
+        msg.textContent = "Login failed: " + err;
+    });
+})();
+</script>
+</body>
+</html>
