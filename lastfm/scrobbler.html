@@ -134,6 +134,12 @@
             return;
         }
 
+        if (m.type === "logout") {
+            session = null;
+            writeJSON(PENDING_KEY, []);   // don't let this account's leftovers go to the next login
+            return;
+        }
+
         if (m.type === "song") {
             // Settle the previous song first, so the order of the page's events can't lose a scrobble.
             bank();
